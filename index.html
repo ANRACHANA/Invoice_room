@@ -1,89 +1,128 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="km">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Login by Phone + Firestore</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login ជាមួយលេខទូរស័ព្ទ + OTP</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <style>
-    body { font-family: sans-serif; max-width: 400px; margin: 50px auto; }
-    input, button { width: 100%; padding: 10px; margin: 8px 0; box-sizing: border-box; }
-    #recaptcha-container { margin: 10px 0; }
+    body { font-family: 'Khmer OS Battambang', sans-serif; max-width: 400px; margin: 30px auto; }
+    label, input, button { width: 100%; margin: 10px 0; padding: 10px; font-size: 16px; }
+    #recaptcha-container { margin: 15px 0; }
   </style>
-
-  <!-- Firebase v9 compat libraries -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
-  <h2>📱 Login by Phone</h2>
+  <h2>Login ជាមួយលេខទូរស័ព្ទ + OTP</h2>
 
-  <input type="text" id="phoneNumber" placeholder="+85512345678" />
+  <label>លេខទូរស័ព្ទ (+855…)</label>
+  <input type="tel" id="phone-number" placeholder="+85512345678" />
+
   <div id="recaptcha-container"></div>
-  <button onclick="sendOTP()">Send OTP</button>
 
-  <input type="text" id="otpCode" placeholder="Enter OTP" />
-  <button onclick="verifyOTP()">Verify & Login</button>
+  <button id="send-otp-btn">ផ្ញើ OTP</button>
 
-  <script>
-    // — Your Firebase config from your snippet —
-    const firebaseConfig = {
-      apiKey: "AIzaSyBt_ScEi_StJ0wQDP-gZwMWmy5A7HqEcXE",
-      authDomain: "invoice-77616.firebaseapp.com",
-      projectId: "invoice-77616",
-      storageBucket: "invoice-77616.firebasestorage.app",
-      messagingSenderId: "91579214593",
-      appId: "1:91579214593:web:6df38affe69ef2eb8ec900",
-      measurementId: "G-EFYYLGKMM8"
-    };
+  <label>បញ្ចូលកូដ OTP</label>
+  <input type="text" id="otp-code" placeholder="XXXXXX" disabled />
 
-    // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db   = firebase.firestore();
+  <button id="verify-otp-btn" disabled>ផ្ទៀងផ្ទាត់ OTP</button>
 
-    // reCAPTCHA
-    window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier(
-      'recaptcha-container',
-      { size: 'normal' }
-    );
+  <div id="status" style="color: red; margin-top: 15px;"></div>
 
-    let confirmationResult = null;
+<script>
+  // Your Firebase configuration (ផ្លាស់ប្តូរតាមរបស់អ្នក)
+  const firebaseConfig = {
+    apiKey: "AIzaSyBt_ScEi_StJ0wQDP-gZwMWmy5A7HqEcXE",
+    authDomain: "invoice-77616.firebaseapp.com",
+    projectId: "invoice-77616",
+    storageBucket: "invoice-77616.appspot.com",
+    messagingSenderId: "91579214593",
+    appId: "1:91579214593:web:209961d1d846dac68ec900",
+    measurementId: "G-EH0TZJDDY3"
+  };
 
-    function sendOTP() {
-      const phone = document.getElementById("phoneNumber").value;
-      auth.signInWithPhoneNumber(phone, window.recaptchaVerifier)
-        .then(res => {
-          confirmationResult = res;
-          alert("📤 OTP sent!");
-        })
-        .catch(err => {
-          console.error(err);
-          alert("❌ Could not send OTP: " + err.message);
-        });
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+
+  // Render reCAPTCHA
+  window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+    size: 'normal',
+    callback: (response) => {
+      document.getElementById('status').textContent = '';
+    },
+    'expired-callback': () => {
+      document.getElementById('status').textContent = 'reCAPTCHA បានផុតកំណត់, សូមព្យាយាមម្ដងទៀត។';
+    }
+  });
+  recaptchaVerifier.render();
+
+  // Elements
+  const phoneNumberInput = document.getElementById('phone-number');
+  const sendOtpBtn = document.getElementById('send-otp-btn');
+  const otpInput = document.getElementById('otp-code');
+  const verifyOtpBtn = document.getElementById('verify-otp-btn');
+  const statusDiv = document.getElementById('status');
+
+  let confirmationResult;
+
+  // Send OTP
+  sendOtpBtn.onclick = () => {
+    const phoneNumber = phoneNumberInput.value.trim();
+    if (!phoneNumber.match(/^\+\d{8,15}$/)) {
+      statusDiv.textContent = 'សូមបញ្ចូលលេខទូរស័ព្ទជាតួអក្សរប្រកបដោយ "+" និងលេខ។';
+      return;
     }
 
-    function verifyOTP() {
-      const code = document.getElementById("otpCode").value;
-      confirmationResult.confirm(code)
-        .then(async res => {
-          const user = res.user;
-          alert("✅ Login success!");
-          // Write user record to Firestore
-          await db.collection("users").doc(user.uid).set({
-            uid:       user.uid,
-            phone:     user.phoneNumber,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-          // Redirect to app
-          window.location.href = "app.html";
-        })
-        .catch(err => {
-          console.error(err);
-          alert("❌ Wrong OTP: " + err.message);
-        });
+    statusDiv.textContent = 'កំពុងផ្ញើ OTP... សូមរង់ចាំ។';
+    sendOtpBtn.disabled = true;
+
+    auth.signInWithPhoneNumber(phoneNumber, window.recaptchaVerifier)
+      .then((result) => {
+        confirmationResult = result;
+        statusDiv.style.color = 'green';
+        statusDiv.textContent = 'OTP បានផ្ញើរួច! សូមបញ្ចូលកូដ OTP ខាងក្រោម។';
+        otpInput.disabled = false;
+        verifyOtpBtn.disabled = false;
+      })
+      .catch((error) => {
+        console.error(error);
+        statusDiv.style.color = 'red';
+        statusDiv.textContent = '❌ បញ្ហាក្នុងការផ្ញើ OTP: ' + error.message;
+        sendOtpBtn.disabled = false;
+      });
+  };
+
+  // Verify OTP
+  verifyOtpBtn.onclick = () => {
+    const code = otpInput.value.trim();
+    if (code.length === 0) {
+      statusDiv.textContent = 'សូមបញ្ចូលកូដ OTP។';
+      return;
     }
-  </script>
+
+    statusDiv.textContent = 'កំពុងផ្ទៀងផ្ទាត់ OTP... សូមរង់ចាំ។';
+    verifyOtpBtn.disabled = true;
+
+    confirmationResult.confirm(code)
+      .then((result) => {
+        const user = result.user;
+        statusDiv.style.color = 'green';
+        statusDiv.textContent = `✅ ស្វាគមន៍, លេខទូរស័ព្ទ ${user.phoneNumber} បានចូលប្រើដោយជោគជ័យ!`;
+        // នៅទីនេះ អ្នកអាចបញ្ជូនទៅ app.html ឬបង្ហាញ UI ផ្សេងទៀត
+        setTimeout(() => {
+          window.location.href = 'app.html'; // ប្តូរតាម path
+        }, 1500);
+      })
+      .catch((error) => {
+        console.error(error);
+        statusDiv.style.color = 'red';
+        statusDiv.textContent = '❌ កូដ OTP មិនត្រឹមត្រូវ ឬផុតកំណត់។ សូមព្យាយាមម្ដងទៀត។';
+        verifyOtpBtn.disabled = false;
+      });
+  };
+</script>
+
 </body>
 </html>

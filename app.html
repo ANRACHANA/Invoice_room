@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>App Page</title>
+  <style>
+    body { font-family: sans-serif; max-width: 400px; margin: 50px auto; text-align: center; }
+    #qr { margin: 20px auto; }
+    button { padding: 10px 20px; margin-top: 20px; }
+  </style>
+
+  <!-- Firebase + QR library -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+</head>
+<body>
+
+  <h2>🎉 Welcome to App</h2>
+  <p id="userInfo">Loading…</p>
+  <canvas id="qr"></canvas>
+  <button onclick="logout()">Logout</button>
+
+  <script>
+    // — Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyBt_ScEi_StJ0wQDP-gZwMWmy5A7HqEcXE",
+      authDomain: "invoice-77616.firebaseapp.com",
+      projectId: "invoice-77616",
+      storageBucket: "invoice-77616.firebasestorage.app",
+      messagingSenderId: "91579214593",
+      appId: "1:91579214593:web:6df38affe69ef2eb8ec900",
+      measurementId: "G-EFYYLGKMM8"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db   = firebase.firestore();
+
+    auth.onAuthStateChanged(async user => {
+      if (!user) {
+        return window.location.href = "login.html";
+      }
+      // Display user phone & UID
+      document.getElementById("userInfo").textContent =
+        `Phone: ${user.phoneNumber}   UID: ${user.uid}`;
+
+      // Generate QR (user.uid)
+      QRCode.toCanvas(
+        document.getElementById("qr"),
+        user.uid,
+        { width: 200 },
+        err => { if (err) console.error(err); }
+      );
+    });
+
+    function logout() {
+      auth.signOut().then(() => {
+        window.location.href = "login.html";
+      });
+    }
+  </script>
+</body>
+</html>
